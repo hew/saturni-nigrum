@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planetary System Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #fff;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            border: 1px solid #333;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .planet-info {
+            margin: 10px 0;
+            padding: 5px;
+            background: #111;
+            border-radius: 3px;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #555;
+        }
+        .time-display {
+            font-size: 18px;
+            color: #FDB813;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌌 Planetary System Test</h1>
+    
+    <div class="test-section">
+        <h2>System Status</h2>
+        <div class="time-display" id="time-display">Time: 0 days</div>
+        <div class="controls">
+            <button onclick="advanceTime(1)">+1 Day</button>
+            <button onclick="advanceTime(30)">+30 Days</button>
+            <button onclick="advanceTime(365)">+1 Year</button>
+            <button onclick="resetSystem()">Reset</button>
+            <button onclick="fastForward()">Fast Forward</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Planet Positions</h2>
+        <div id="planet-positions"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Orbital Periods Test</h2>
+        <div id="orbital-test"></div>
+    </div>
+
+    <script type="module">
+        import { PlanetarySystem } from './src/lib/PlanetarySystem.js';
+        
+        const system = new PlanetarySystem();
+        let isRunning = false;
+        let animationId;
+        
+        function updateDisplay() {
+            // Update time display
+            document.getElementById('time-display').textContent = 
+                `Time: ${system.currentTime.toFixed(1)} days`;
+            
+            // Update planet positions
+            const positions = system.getAllPlanetPositions();
+            const positionsDiv = document.getElementById('planet-positions');
+            positionsDiv.innerHTML = '';
+            
+            Object.entries(positions).forEach(([name, data]) => {
+                const div = document.createElement('div');
+                div.className = 'planet-info';
+                div.innerHTML = `
+                    <strong style="color: ${data.planet.color}">${name}</strong>
+                    Position: (${data.x.toFixed(2)}, ${data.y.toFixed(2)}, ${data.z.toFixed(2)})
+                    Angle: ${data.planet.currentAngle.toFixed(1)}°
+                    Period: ${data.planet.period} days
+                `;
+                positionsDiv.appendChild(div);
+            });
+        }
+        
+        function advanceTime(days) {
+            system.updateTime(days);
+            updateDisplay();
+        }
+        
+        function resetSystem() {
+            system.reset();
+            updateDisplay();
+            stopAnimation();
+        }
+        
+        function fastForward() {
+            if (isRunning) {
+                stopAnimation();
+            } else {
+                startAnimation();
+            }
+        }
+        
+        function startAnimation() {
+            isRunning = true;
+            document.querySelector('button[onclick="fastForward()"]').textContent = 'Stop';
+            
+            function animate() {
+                system.updateTime(1); // Advance by 1 day per frame
+                updateDisplay();
+                
+                if (isRunning) {
+                    animationId = requestAnimationFrame(animate);
+                }
+            }
+            animate();
+        }
+        
+        function stopAnimation() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            document.querySelector('button[onclick="fastForward()"]').textContent = 'Fast Forward';
+        }
+        
+        // Test orbital periods
+        function testOrbitalPeriods() {
+            const testDiv = document.getElementById('orbital-test');
+            testDiv.innerHTML = '<h3>Testing Mercury Orbit...</h3>';
+            
+            system.reset();
+            const mercuryPeriod = system.planets.Mercury.period;
+            const initialAngle = system.planets.Mercury.currentAngle;
+            
+            system.updateTime(mercuryPeriod); // Advance by Mercury's full period
+            const finalAngle = system.planets.Mercury.currentAngle;
+            
+            testDiv.innerHTML += `
+                <p>Mercury's period: ${mercuryPeriod} days</p>
+                <p>Initial angle: ${initialAngle.toFixed(1)}°</p>
+                <p>Final angle: ${finalAngle.toFixed(1)}°</p>
+                <p>Test: ${Math.abs(finalAngle - initialAngle - 360) < 1 ? '✅ PASS' : '❌ FAIL'}</p>
+            `;
+        }
+        
+        // Make functions global
+        window.advanceTime = advanceTime;
+        window.resetSystem = resetSystem;
+        window.fastForward = fastForward;
+        
+        // Initialize
+        updateDisplay();
+        testOrbitalPeriods();
+    </script>
+</body>
+</html>

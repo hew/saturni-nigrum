@@ -2,11 +2,14 @@
   import { onMount } from 'svelte';
   import * as THREE from 'three';
   import { gsap } from 'gsap';
+  import { PlanetarySystem } from './PlanetarySystem.js';
 
   let canvas;
   let scene, camera, renderer;
   let pyramid;
   let mouseX = 0, mouseY = 0;
+  let planetarySystem;
+  let planetMeshes = {};
 
   onMount(() => {
     init();
@@ -67,6 +70,7 @@
     
     createPyramid();
     createLighting();
+    createPlanets();
     animateIntro();
   }
 
@@ -103,6 +107,25 @@
     scene.add(ambientLight);
   }
 
+  function createPlanets() {
+    // Initialize the planetary system
+    planetarySystem = new PlanetarySystem();
+    
+    // Create 3D meshes for each planet
+    Object.entries(planetarySystem.planets).forEach(([name, planet]) => {
+      if (name === 'Sun') return; // Skip sun for now
+      
+      const geometry = new THREE.SphereGeometry(planet.size * 0.2, 16, 16);
+      const material = new THREE.MeshBasicMaterial({ 
+        color: planet.color 
+      });
+      
+      const mesh = new THREE.Mesh(geometry, material);
+      planetMeshes[name] = mesh;
+      scene.add(mesh);
+    });
+  }
+
 
   function animateIntro() {
     gsap.from(pyramid.scale, {
@@ -124,6 +147,27 @@
 
   function animate() {
     requestAnimationFrame(animate);
+    
+    // Update planetary system with consistent speed
+    if (planetarySystem) {
+      // Much slower, realistic speed (about 1 day per 60 seconds)
+      const timeSpeed = 1 / 60;
+      
+      // Update time in the planetary system
+      planetarySystem.updateTime(timeSpeed);
+      
+      // Update planet positions in 3D space
+      Object.entries(planetMeshes).forEach(([name, mesh]) => {
+        const pos = planetarySystem.getPlanetPosition(name);
+        
+        // Scale and position above the triangle
+        mesh.position.set(
+          pos.x * 0.5, // Scale down X
+          pos.y * 0.5 + 6, // Scale down Y and move above triangle
+          pos.z * 0.5 // Scale down Z
+        );
+      });
+    }
     
     renderer.render(scene, camera);
   }

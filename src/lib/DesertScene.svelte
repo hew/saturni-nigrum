@@ -10,6 +10,7 @@
   let mouseX = 0, mouseY = 0;
   let planetarySystem;
   let planetMeshes = {};
+  let orbitalCircles = [];
 
   onMount(() => {
     init();
@@ -71,6 +72,7 @@
     createPyramid();
     createLighting();
     createPlanets();
+    createOrbitalCircles();
     animateIntro();
   }
 
@@ -123,6 +125,42 @@
       const mesh = new THREE.Mesh(geometry, material);
       planetMeshes[name] = mesh;
       scene.add(mesh);
+    });
+  }
+
+  function createOrbitalCircles() {
+    // Create orbital path circles for each planet
+    Object.entries(planetarySystem.planets).forEach(([name, planet]) => {
+      if (name === 'Sun') return; // Skip sun
+      
+      // Create circle geometry using points
+      const radius = planet.distance * 0.5; // Match the scaling we use for planet positions
+      const points = [];
+      const segments = 64;
+      
+      for (let i = 0; i <= segments; i++) {
+        const theta = (i / segments) * Math.PI * 2;
+        points.push(new THREE.Vector3(
+          Math.cos(theta) * radius,
+          Math.sin(theta) * radius,
+          0
+        ));
+      }
+      
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      
+      // Create line material
+      const material = new THREE.LineBasicMaterial({
+        color: 0xaaaaaa,
+        transparent: true,
+        opacity: 0.6
+      });
+      
+      const circle = new THREE.LineLoop(geometry, material);
+      circle.position.set(0, 6, 0); // Position above triangle, same as planets
+      
+      orbitalCircles.push(circle);
+      scene.add(circle);
     });
   }
 

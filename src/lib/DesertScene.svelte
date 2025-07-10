@@ -72,14 +72,28 @@
 
 
   function createPyramid() {
-    const geometry = new THREE.ConeGeometry(4, 8, 4);
+    const geometry = new THREE.BufferGeometry();
+    
+    // Create perfect equilateral triangle - bigger size for orthographic view
+    const size = 6;
+    const height = size * Math.sqrt(3) / 2;
+    
+    const vertices = new Float32Array([
+      0, height / 2, 0,           // Top vertex
+      -size / 2, -height / 2, 0, // Bottom left
+      size / 2, -height / 2, 0   // Bottom right
+    ]);
+    
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geometry.computeVertexNormals();
+    
     const material = new THREE.MeshBasicMaterial({
-      color: 0xffffff
+      color: 0xffffff,
+      side: THREE.DoubleSide
     });
     
     pyramid = new THREE.Mesh(geometry, material);
-    pyramid.position.y = 0;
-    pyramid.rotation.y = Math.PI / 4;
+    pyramid.position.set(0, 0, 0);
     
     scene.add(pyramid);
   }

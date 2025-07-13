@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <g stroke="#ccaa00" stroke-width="2" fill="none">
+    <!-- Front face -->
+    <rect x="20" y="35" width="40" height="40" />
+    <!-- Top face -->
+    <path d="M20,35 L40,20 L80,20 L60,35 Z" />
+    <!-- Right face -->
+    <path d="M60,35 L80,20 L80,60 L60,75 Z" />
+    <!-- Hidden edges with opacity -->
+    <g stroke-opacity="0.3">
+      <line x1="20" y1="75" x2="40" y2="60" />
+      <line x1="40" y1="60" x2="80" y2="60" />
+      <line x1="40" y1="60" x2="40" y2="20" />
+    </g>
+  </g>
+</svg>

@@ -1,7 +1,9 @@
 {
-  "name": "occult-pyramid",
+  "name": "tahini",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Saturni nigrum cubum custodiat arcanum temporum",
+  "homepage": "https://tahini.site",
   "type": "module",
   "scripts": {
     "dev": "vite",

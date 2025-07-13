@@ -468,8 +468,11 @@
         console.log('🪐 Saturn\'s time mastery achieved: 666!');
       }
     } else {
-      // Wrong timing - but don't reset counter anymore
-      console.log('Saturn reminds: tap when seconds contain 6...');
+      // Wrong timing - Saturn punishes impatience
+      if (saturnCounter > 0) {
+        console.log('Saturn resets: time waits for no one...');
+      }
+      saturnCounter = 0;
     }
   }
   

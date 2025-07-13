@@ -32,6 +32,7 @@
   let breathPhase = 'inhale'; // 'inhale' or 'exhale'
   let breathStartTime = 0;
   let lastBreathUpdate = 0;
+  let triangleGlowActive = false;
   
   // Cube hint animation
   let targetCubeOpacity = 1.0;
@@ -459,12 +460,12 @@
     if (hasSecondsWithSix) {
       // Correct timing! Increment counter
       saturnCounter++;
-      console.log(`Saturn timing: ${saturnCounter}/6`);
+      console.log(`Saturn reveals: ${'6'.repeat(saturnCounter)}`);
       
-      // Check if we've reached 6 correct taps
-      if (saturnCounter >= 6) {
+      // Check if we've reached 666
+      if (saturnCounter >= 3) {
         sceneStore.dispatch(actions.unlockSaturnSecret());
-        console.log('🪐 Saturn\'s time mastery achieved!');
+        console.log('🪐 Saturn\'s time mastery achieved: 666!');
       }
     } else {
       // Wrong timing - but don't reset counter anymore
@@ -479,10 +480,11 @@
     // Split into individual characters for Svelte template rendering
     return timeString.split('').map((char, index) => {
       // Only highlight '6' in the seconds position (last 2 digits)
+      // But stop highlighting after first successful click
       const isSecondsPosition = index >= timeString.length - 2;
       return {
         char,
-        isSix: char === '6' && isSecondsPosition
+        isSix: char === '6' && isSecondsPosition && saturnCounter === 0
       };
     });
   }
@@ -539,6 +541,12 @@
     if (isPeakMoment) {
       breathCounter++;
       console.log(`Triangle breath: ${breathCounter}/3`);
+      
+      // Flash the glow effect for successful timing
+      triangleGlowActive = true;
+      setTimeout(() => {
+        triangleGlowActive = false;
+      }, 400); // 0.4 seconds, same as the success window
       
       if (breathCounter >= 3) {
         sceneStore.dispatch(actions.unlockTrinitySecret());
@@ -896,11 +904,8 @@
     <!-- Final state - no hints -->
   {:else if state.showTriangle}
     <!-- Triangle breath ritual interface -->
-    <p class="triangle-breath">
-      {breathPhase} 
-      {#if breathCounter > 0}
-        <span class="breath-counter">{breathCounter}</span>
-      {/if}
+    <p class="triangle-breath" class:success-glow={triangleGlowActive}>
+      {breathPhase}
     </p>
   {:else if state.showSaturn}
     <!-- Saturn time secret interface -->
@@ -909,14 +914,13 @@
         <span class:glowing-six={timeChar.isSix}>{timeChar.char}</span>
       {/each}
       {#if saturnCounter > 0}
-        <span class="saturn-counter">{saturnCounter}</span>
+        <span class="saturn-counter" class:complete={saturnCounter >= 3}>{'6'.repeat(saturnCounter)}</span>
       {/if}
     </p>
   {:else if state.autoRotate}
     <p>Tap to control</p>
   {:else}
     <p>Drag to rotate • Tap to release</p>
-    <p>X: {state.mouseX.toFixed(2)} • Y: {state.mouseY.toFixed(2)}</p>
   {/if}
 </div>
 
@@ -999,6 +1003,7 @@
   @media (max-width: 768px) {
     .controls-hint {
       font-size: 13px; /* Larger on mobile */
+      opacity: 0.7; /* 40% brighter on mobile */
     }
   }
   
@@ -1010,9 +1015,22 @@
   }
   
   .saturn-counter {
-    color: #333;
+    color: #666;
     font-weight: bold;
     margin-left: 10px;
+    letter-spacing: 2px;
+    transition: all 0.3s ease;
+  }
+  
+  .saturn-counter.complete {
+    color: #cc0000;
+    text-shadow: 0 0 10px rgba(204, 0, 0, 0.6);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
   }
   
   .glowing-six {
@@ -1037,13 +1055,16 @@
     margin: 0;
     text-transform: lowercase;
     opacity: 0.7;
+    transition: all 0.1s ease;
   }
   
-  .breath-counter {
-    color: #333;
+  .triangle-breath.success-glow {
+    opacity: 1;
     font-weight: bold;
-    margin-left: 10px;
+    color: #fff;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
   }
+  
   
   .secret-button {
     position: absolute;

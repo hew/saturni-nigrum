@@ -38,7 +38,7 @@ export const MATERIALS = {
   },
   
   GRID: {
-    opacity: 0.4,    // More visible for chessboard effect
+    opacity: 0.05,    // Extremely subtle grid visibility
     transparent: true
   },
   

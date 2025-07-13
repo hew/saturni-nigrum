@@ -558,18 +558,13 @@
     if (hasSecondsWithSix) {
       // Correct timing! Increment counter
       saturnCounter++;
-      console.log(`Saturn reveals: ${'6'.repeat(saturnCounter)}`);
       
       // Check if we've reached 666
       if (saturnCounter >= 3) {
         sceneStore.dispatch(actions.unlockSaturnSecret());
-        console.log('🪐 Saturn\'s time mastery achieved: 666!');
       }
     } else {
       // Wrong timing - Saturn punishes impatience
-      if (saturnCounter > 0) {
-        console.log('Saturn resets: time waits for no one...');
-      }
       saturnCounter = 0;
     }
   }
@@ -641,7 +636,6 @@
     
     if (isPeakMoment) {
       breathCounter++;
-      console.log(`Triangle breath: ${breathCounter}/3`);
       
       // Flash the glow effect for successful timing
       triangleGlowActive = true;
@@ -652,13 +646,9 @@
       if (breathCounter >= 3) {
         sceneStore.dispatch(actions.unlockTrinitySecret());
         sceneStore.dispatch(actions.showFlower());
-        console.log('△ Trinity alignment achieved!');
       }
     } else {
       // Triangle demands perfect synchronization
-      if (breathCounter > 0) {
-        console.log('Triangle resets: timing must align with the peak...');
-      }
       breathCounter = 0;
     }
   }
@@ -718,7 +708,6 @@
         
         if (clickedId === expectedId) {
           metatronClicks.push(clickedId);
-          console.log(`Sacred geometry progress: ${metatronClicks.length}/13`);
           
           // Dim the clicked circle - find all related meshes
           const nodeMap = flowerOfLife.userData.nodeMap;
@@ -729,7 +718,6 @@
           
           // Check if sequence is complete
           if (metatronClicks.length === 13) {
-            console.log('🔯 Metatron\'s Cube awakens!');
             showMetatron = true;
             // Create Metatron's Cube if not already created
             if (!metatronCube) {
@@ -1108,15 +1096,15 @@
   {/if}
 </div>
 
-<!-- Saturn button (shows when cube secret unlocked) -->
-{#if state.cubeSecretUnlocked}
+<!-- Saturn button (shows when cube secret unlocked OR magic mode) -->
+{#if state.cubeSecretUnlocked || magicMode}
 <button class="secret-button" on:click={goToSaturn}>
   ⬢
 </button>
 {/if}
 
-<!-- Triangle button (shows when saturn secret unlocked) -->
-{#if state.saturnSecretUnlocked}
+<!-- Triangle button (shows when saturn secret unlocked OR magic mode) -->
+{#if state.saturnSecretUnlocked || magicMode}
   <button 
     class="saturn-secret-button" 
     on:click={(e) => {
@@ -1131,8 +1119,8 @@
   </button>
 {/if}
 
-<!-- Flower button (shows when trinity secret unlocked) -->
-{#if state.trinitySecretUnlocked}
+<!-- Flower button (shows when trinity secret unlocked OR magic mode) -->
+{#if state.trinitySecretUnlocked || magicMode}
   <button 
     class="trinity-secret-button" 
     on:click={(e) => {
@@ -1148,7 +1136,7 @@
 {/if}
 
 <!-- Cube return button (only in magic mode) -->
-{#if magicMode && !state.showCube}
+{#if magicMode}
   <button 
     class="cube-return-button" 
     on:click={(e) => {

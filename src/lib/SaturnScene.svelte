@@ -32,7 +32,7 @@
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     // Create minimalist Saturn
-    // createSaturn(); // TEMPORARILY DISABLED FOR TESTING
+    createSaturn();
 
     // Create wasteland ground using modular component
     ground = createWastelandGround();  // Use default 0.2 opacity like cube scene
@@ -180,10 +180,6 @@
 
 <canvas bind:this={canvas}></canvas>
 
-<!-- Test button - always visible for now -->
-<button class="secret-button" on:click={() => console.log('Saturn secret!')}>
-  ⬢
-</button>
 
 <style>
   canvas {

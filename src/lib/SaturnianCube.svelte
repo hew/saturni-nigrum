@@ -42,6 +42,17 @@
   $: isMobile = window?.innerWidth < 768;
   $: tubeRadius = isMobile ? 0.05 : 0.025; // 50% thinner on desktop
   
+  // Metatron variables
+  let metatronClicks = [];
+  let metatronCube = null;
+  let showMetatron = false;
+  
+  // The sacred order - based on the Fruit of Life pattern
+  // This is the true occult secret - the specific sequence matters
+  const FRUIT_OF_LIFE_ORDER = [0, 1, 3, 5, 2, 4, 6, 7, 9, 11, 8, 10, 12];
+  
+  // The sacred order remains hidden
+  
   // Local state variables (will be migrated to store later)
   let showSaturn = false;
   let saturnSecretUnlocked = false; // Reset to false for production
@@ -365,9 +376,11 @@
     // Center circle radius
     const radius = 3;
     const circles = [];
+    const circleData = []; // Store circle positions and IDs
+    const nodeMap = new Map(); // Map to store clickable nodes by ID
     
     // Create circle geometry (using tube for thick lines)
-    function createCircle(x, y, z = 0) {
+    function createCircle(x, y, z = 0, id) {
       const curve = new THREE.EllipseCurve(
         x, y,            // Center
         radius, radius,  // xRadius, yRadius
@@ -398,39 +411,69 @@
       });
       
       const circle = new THREE.Mesh(tubeGeometry, material);
+      circle.userData = { id, centerX: x, centerY: y, clicked: false };
+      circle.name = `circle_${id}`; // Add name for easier finding
       return circle;
     }
     
-    // Create the pattern - center circle plus 6 surrounding circles
-    // Center
-    circles.push(createCircle(0, 0));
+    // Create clickable node at circle center
+    function createClickableNode(x, y, z = 0, id) {
+      // Create an invisible sphere at the center for clicking
+      // Larger on mobile for easier touch targeting
+      const nodeRadius = isMobile ? 1.0 : 0.5;
+      const nodeGeometry = new THREE.SphereGeometry(nodeRadius, 16, 16);
+      const nodeMaterial = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: 0 // Invisible but still clickable
+      });
+      
+      const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
+      node.position.set(x, y, z);
+      node.userData = { id, isNode: true };
+      node.name = `node_${id}`;
+      
+      return node;
+    }
     
-    // Six circles around center (60 degree intervals)
+    // Create the pattern - center circle plus 6 surrounding circles
+    // Center (ID: 0)
+    const circle0 = createCircle(0, 0, 0, 0);
+    const node0 = createClickableNode(0, 0, 0, 0);
+    circles.push(circle0);
+    circles.push(node0);
+    nodeMap.set(0, { circle: circle0, node: node0 });
+    circleData.push({ x: 0, y: 0, id: 0 });
+    
+    // Six circles around center (60 degree intervals) (IDs: 1-6)
     for (let i = 0; i < 6; i++) {
       const angle = (i * Math.PI * 2) / 6;
       const x = Math.cos(angle) * radius;
       const y = Math.sin(angle) * radius;
-      circles.push(createCircle(x, y));
+      const circle = createCircle(x, y, 0, i + 1);
+      const node = createClickableNode(x, y, 0, i + 1);
+      circles.push(circle);
+      circles.push(node);
+      nodeMap.set(i + 1, { circle, node });
+      circleData.push({ x, y, id: i + 1 });
     }
     
-    // Second layer - 6 more circles at vertices of hexagon
+    // Second layer - 6 more circles (IDs: 7-12)
     for (let i = 0; i < 6; i++) {
       const angle = (i * Math.PI * 2) / 6 + Math.PI / 6; // Offset by 30 degrees
       const x = Math.cos(angle) * radius * Math.sqrt(3);
       const y = Math.sin(angle) * radius * Math.sqrt(3);
-      circles.push(createCircle(x, y));
+      const circle = createCircle(x, y, 0, i + 7);
+      const node = createClickableNode(x, y, 0, i + 7);
+      circles.push(circle);
+      circles.push(node);
+      nodeMap.set(i + 7, { circle, node });
+      circleData.push({ x, y, id: i + 7 });
     }
     
-    // Third layer - completing the flower pattern
-    for (let i = 0; i < 6; i++) {
-      const angle1 = (i * Math.PI * 2) / 6;
-      const angle2 = ((i + 1) * Math.PI * 2) / 6;
-      
-      // Position between two adjacent circles
-      const x = Math.cos(angle1) * radius + Math.cos(angle2) * radius;
-      const y = Math.sin(angle1) * radius + Math.sin(angle2) * radius;
-      circles.push(createCircle(x, y));
-    }
+    // Store circle data and map for click detection
+    flowerOfLife.userData = { circles: circleData, nodeMap };
+    
     
     // Add all circles to group
     circles.forEach(circle => {
@@ -445,6 +488,61 @@
     flowerOfLife.rotation.x = 0;
     
     scene.add(flowerOfLife);
+  }
+  
+  function createMetatronsCube() {
+    // Create Metatron's Cube by connecting all 13 centers
+    metatronCube = new THREE.Group();
+    
+    const circleData = flowerOfLife.userData.circles;
+    const lineMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffcc00 // Golden color for the sacred geometry
+    });
+    
+    // Connect every circle center to every other circle center
+    for (let i = 0; i < circleData.length; i++) {
+      for (let j = i + 1; j < circleData.length; j++) {
+        const start = circleData[i];
+        const end = circleData[j];
+        
+        const direction = new THREE.Vector3(
+          end.x - start.x,
+          end.y - start.y,
+          0
+        );
+        const length = direction.length();
+        
+        if (length > 0) {
+          const tubeGeometry = new THREE.CylinderGeometry(
+            tubeRadius * 0.6, // Slightly thinner than flower circles
+            tubeRadius * 0.6,
+            length,
+            8
+          );
+          
+          const tube = new THREE.Mesh(tubeGeometry, lineMaterial);
+          tube.position.set(
+            (start.x + end.x) / 2,
+            (start.y + end.y) / 2,
+            0
+          );
+          
+          // Orient the tube
+          const axis = new THREE.Vector3(0, 1, 0);
+          const quaternion = new THREE.Quaternion().setFromUnitVectors(
+            axis,
+            direction.normalize()
+          );
+          tube.quaternion.copy(quaternion);
+          
+          metatronCube.add(tube);
+        }
+      }
+    }
+    
+    metatronCube.position.copy(flowerOfLife.position);
+    metatronCube.visible = false;
+    scene.add(metatronCube);
   }
 
   function goToSaturn(event) {
@@ -565,6 +663,99 @@
     }
   }
   
+  function handleFlowerClick(event) {
+    if (!state.showFlower || showMetatron) return;
+    
+    // Handle both mouse and touch events
+    const clientX = event.clientX ?? event.touches?.[0]?.clientX;
+    const clientY = event.clientY ?? event.touches?.[0]?.clientY;
+    
+    if (clientX === undefined || clientY === undefined) return;
+    
+    // Get position in normalized device coordinates
+    const rect = canvas.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    
+    // Raycaster for click detection
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+    
+    // On mobile, increase raycaster precision for smaller touch targets
+    if (isMobile) {
+      raycaster.params.Points.threshold = 0.1;
+    }
+    
+    // Check intersections with flower circles
+    const intersects = raycaster.intersectObjects(flowerOfLife.children, true);
+    
+    if (intersects.length > 0) {
+      const clickedObject = intersects[0].object;
+      
+      // Check if we clicked a node
+      let clickedNode = null;
+      
+      // Find the clicked node
+      if (clickedObject.userData && clickedObject.userData.isNode) {
+        clickedNode = clickedObject;
+      } else {
+        // Traverse up to find a node
+        let obj = clickedObject;
+        while (obj && obj.parent) {
+          if (obj.userData && obj.userData.isNode) {
+            clickedNode = obj;
+            break;
+          }
+          obj = obj.parent;
+        }
+      }
+      
+      if (clickedNode && clickedNode.userData && clickedNode.userData.id !== undefined) {
+        const clickedId = clickedNode.userData.id;
+        
+        // Check if this is the next circle in the sacred sequence
+        const expectedId = FRUIT_OF_LIFE_ORDER[metatronClicks.length];
+        
+        if (clickedId === expectedId) {
+          metatronClicks.push(clickedId);
+          console.log(`Sacred geometry progress: ${metatronClicks.length}/13`);
+          
+          // Dim the clicked circle - find all related meshes
+          const nodeMap = flowerOfLife.userData.nodeMap;
+          const nodeData = nodeMap.get(clickedId);
+          if (nodeData && nodeData.circle && nodeData.circle.material) {
+            nodeData.circle.material.color.setHex(0x666666);
+          }
+          
+          // Check if sequence is complete
+          if (metatronClicks.length === 13) {
+            console.log('🔯 Metatron\'s Cube awakens!');
+            showMetatron = true;
+            // Create Metatron's Cube if not already created
+            if (!metatronCube) {
+              createMetatronsCube();
+            }
+            // Animate the transformation
+            setTimeout(() => {
+              metatronCube.visible = true;
+              flowerOfLife.visible = false;
+            }, 500);
+          }
+        } else {
+          // Wrong circle - reset
+          metatronClicks = [];
+          // Reset all circles to white
+          const nodeMap = flowerOfLife.userData.nodeMap;
+          nodeMap.forEach((nodeData) => {
+            if (nodeData.circle && nodeData.circle.material) {
+              nodeData.circle.material.color.setHex(0xffffff);
+            }
+          });
+        }
+      }
+    }
+  }
+  
   // Simple visibility - show exactly what the store says to show
   $: if (cube && saturn && saturnRings && blackTriangle && flowerOfLife) {
     cube.visible = state.showCube;
@@ -572,7 +763,7 @@
     saturn.visible = state.showSaturn;
     saturnRings.visible = state.showSaturn;
     blackTriangle.visible = state.showTriangle;
-    flowerOfLife.visible = state.showFlower;
+    flowerOfLife.visible = state.showFlower && !showMetatron;
   }
 
   function handleResize() {
@@ -601,21 +792,20 @@
     
     const cubeEdge = 10; // Cube size constant
 
-    // Object rotation - only when in auto mode
-    if (state.autoRotate) {
-      if (!state.showSaturn) {
-        cube.rotation.y = time * 0.1;
-      
-        // The secret: viewing from specific angle shows hexagon
-        // When viewed from corner (1,1,1 direction), cube projects as hexagon
-        const revealAngle = Math.sin(time * 0.2) * 0.1;
-        cube.rotation.x = 0.615 + revealAngle; // Magic angle: atan(1/sqrt(2))
-      } else if (!state.showTriangle) {
-        // Rotate Saturn only if not showing triangle
-        saturn.rotation.y = time * 0.05;
-        saturnRings.rotation.z = Math.sin(time * 0.3) * 0.02;
-        saturnRings.rotation.x = -26.7 * (Math.PI / 180) + Math.cos(time * 0.25) * 0.03;
-      }
+    // Object rotation
+    if (state.showSaturn && !state.showTriangle) {
+      // Saturn always auto-rotates
+      saturn.rotation.y = time * 0.05;
+      saturnRings.rotation.z = Math.sin(time * 0.3) * 0.02;
+      saturnRings.rotation.x = -26.7 * (Math.PI / 180) + Math.cos(time * 0.25) * 0.03;
+    } else if (state.showCube && state.autoRotate) {
+      // Cube only rotates in auto mode
+      cube.rotation.y = time * 0.1;
+    
+      // The secret: viewing from specific angle shows hexagon
+      // When viewed from corner (1,1,1 direction), cube projects as hexagon
+      const revealAngle = Math.sin(time * 0.2) * 0.1;
+      cube.rotation.x = 0.615 + revealAngle; // Magic angle: atan(1/sqrt(2))
     }
     // When manual control, keep cube still so user can find the angles
     
@@ -624,6 +814,11 @@
       blackTriangle.visible = true;
       // Always face camera for perfect 2D appearance
       blackTriangle.lookAt(camera.position);
+    }
+    
+    // Handle Metatron's Cube visibility
+    if (showMetatron && metatronCube) {
+      metatronCube.lookAt(camera.position);
     }
 
     // Camera distance responsive to screen size
@@ -646,30 +841,13 @@
       camera.position.x = cameraDistance + Math.sin(time * 0.1) * 2;
       camera.position.y = cameraHeight;
       camera.position.z = cameraDistance + Math.cos(time * 0.1) * 2;
-    } else if (!state.showTriangle && !state.showFlower) {
-      // Camera stays still, objects rotate with mouse (not for triangle/flower)
+    } else if (state.showCube && !state.autoRotate) {
+      // Camera stays still, cube rotates with mouse
       camera.position.set(cameraDistance, cameraHeight, cameraDistance);
       
-      // Rotate the active object based on mouse
-      const activeObject = state.showSaturn ? saturn : cube;
-      
-      // Normal object rotation
-      activeObject.rotation.x = state.mouseY * Math.PI;
-      activeObject.rotation.y = state.mouseX * Math.PI * 2;
-      
-      // Also rotate Saturn's rings if active - now on both axes
-      if (state.showSaturn && saturnRings) {
-        saturnRings.rotation.z = state.mouseY * Math.PI * 0.3; // Tilt based on Y
-        saturnRings.rotation.x = -26.7 * (Math.PI / 180) + state.mouseX * Math.PI * 0.2; // Additional X-axis rotation
-      }
-      
-      // Update Saturn rotation in store
-      if (state.showSaturn) {
-        sceneStore.dispatch(actions.updateRotation(
-          saturn.rotation.x,
-          saturn.rotation.y
-        ));
-      }
+      // Rotate cube based on mouse
+      cube.rotation.x = state.mouseY * Math.PI;
+      cube.rotation.y = state.mouseX * Math.PI * 2;
     } else {
       // Fixed camera for triangle and flower states
       camera.position.set(cameraDistance, cameraHeight, cameraDistance);
@@ -724,9 +902,7 @@
     const hexagonStrength = state.autoRotate ? 0 : Math.pow(maxAlignment, 100); // Incredibly sharp, only in manual mode
     
     // Update appearance based on alignment
-    if (state.showSaturn) {
-      updateSaturnAppearance();
-    } else {
+    if (state.showCube) {
       updateCubeAppearance(hexagonStrength);
       
       // Smooth fade animation for cube opacity
@@ -852,11 +1028,13 @@
       
       // Handle different interaction modes
       if (state.showFlower) {
-        // Final state - no interaction
+        // Flower state - check for sacred geometry clicks
+        handleFlowerClick(event);
         return;
       } else if (state.showTriangle) {
         handleTriangleBreathClick();
       } else if (state.showSaturn) {
+        // For Saturn: only handle the timing click, no rotation control
         handleSaturnTimingClick();
       } else if ($canInteractWithCube) {
         // Toggle auto-rotate on click/tap for cube
@@ -903,8 +1081,11 @@
 <canvas bind:this={canvas}></canvas>
 
 <div class="controls-hint">
-  {#if state.showFlower}
-    <!-- Final state - no hints -->
+  {#if state.showFlower && !showMetatron}
+    <!-- Extremely subtle hint for the initiated -->
+    <p style="opacity: 0.3; font-size: 10px;">13</p>
+  {:else if showMetatron}
+    <!-- Metatron achieved -->
   {:else if state.showTriangle}
     <!-- Triangle breath ritual interface -->
     <p class="triangle-breath" class:success-glow={triangleGlowActive}>
@@ -950,7 +1131,7 @@
   </button>
 {/if}
 
-<!-- Flower button (for testing - shows when trinity secret unlocked) -->
+<!-- Flower button (shows when trinity secret unlocked) -->
 {#if state.trinitySecretUnlocked}
   <button 
     class="trinity-secret-button" 

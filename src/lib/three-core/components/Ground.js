@@ -4,7 +4,7 @@
  */
 
 import * as THREE from 'three';
-import { COLORS, MATERIALS, GEOMETRY, SOLAR_SYSTEM } from '../utils/Constants.js';
+import { COLORS, MATERIALS, GEOMETRY } from '../utils/Constants.js';
 
 export class Ground {
   constructor(options = {}) {
@@ -188,8 +188,8 @@ export class Ground {
   
   _createSpaceGrid() {
     // Create enhanced grid for space scenes with cyan accents
-    const gridSize = SOLAR_SYSTEM?.GRID?.SIZE || 600;
-    const divisions = SOLAR_SYSTEM?.GRID?.DIVISIONS || 50;
+    const gridSize = 600;
+    const divisions = 50;
     
     const gridGeometry = new THREE.BufferGeometry();
     const positions = [];
@@ -236,8 +236,8 @@ export class Ground {
         };
       case 'space':
         return {
-          primary: COLORS.SOLAR_GRID_BASE,
-          secondary: COLORS.SOLAR_GRID_BASE
+          primary: 0x002222,    // Cyan-tinted grid
+          secondary: 0x002222
         };
       default:
         return {

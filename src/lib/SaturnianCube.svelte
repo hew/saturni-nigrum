@@ -771,7 +771,7 @@
       const isFrontFacing = edgeDir.dot(cameraDir) > 0;
       
       // When at the perfect magic angle (viewing from corner)
-      if (hexagonStrength > 0.999) {
+      if (hexagonStrength > 0.995) {
         // Make cube fully transparent
         targetCubeOpacity = 0.0;
         
@@ -779,8 +779,8 @@
         edge.material.color.setHex(0xffcc00); // Bright Saturn gold
         edge.material.opacity = 1.0;
         
-        // Unlock the secret at the same threshold
-        if (!state.secretUnlocked) {
+        // Unlock the secret only at absolute perfection
+        if (hexagonStrength > 0.999 && !state.secretUnlocked) {
           sceneStore.dispatch(actions.unlockCubeSecret());
         }
       } else if (hexagonStrength > 0.95) {

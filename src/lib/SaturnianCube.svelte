@@ -779,8 +779,8 @@
         edge.material.color.setHex(0xffcc00); // Bright Saturn gold
         edge.material.opacity = 1.0;
         
-        // Unlock the secret only at absolute perfection
-        if (hexagonStrength > 0.999 && !state.secretUnlocked) {
+        // Unlock the secret when lines turn yellow
+        if (!state.secretUnlocked) {
           sceneStore.dispatch(actions.unlockCubeSecret());
         }
       } else if (hexagonStrength > 0.95) {

@@ -7,8 +7,15 @@
 
 export class PlanetarySystem {
   constructor() {
+    // Use J2000 epoch (January 1, 2000, 12:00 UTC) as reference
+    this.epochDate = new Date('2000-01-01T12:00:00Z');
     this.currentTime = 0; // Time in days since epoch
     this.planets = this.initializePlanets();
+    
+    // Initialize to current date
+    const now = new Date();
+    const daysSinceEpoch = (now - this.epochDate) / (1000 * 60 * 60 * 24);
+    this.setTimeAbsolute(daysSinceEpoch);
   }
 
   /**
@@ -16,6 +23,8 @@ export class PlanetarySystem {
    * Distances are scaled for visual appeal, periods are Earth-relative
    */
   initializePlanets() {
+    // Approximate positions for 2025-01-10 (today)
+    // These are rough estimates for visual demonstration
     return {
       Sun: {
         name: 'Sun',
@@ -24,6 +33,7 @@ export class PlanetarySystem {
         distance: 0, // Sun is at center (relative to Earth's perspective)
         period: 365.25, // Earth days for one orbit
         currentAngle: 0,
+        initialAngle: 0, // Reference angle at epoch
         eccentricity: 0 // Circular orbit for simplicity
       },
       Moon: {
@@ -33,6 +43,7 @@ export class PlanetarySystem {
         distance: 2, // Scaled distance units
         period: 27.3, // Lunar month
         currentAngle: 0,
+        initialAngle: 0, // Reference angle at epoch
         eccentricity: 0.05
       },
       Mercury: {
@@ -42,6 +53,7 @@ export class PlanetarySystem {
         distance: 3,
         period: 87.97, // Earth days
         currentAngle: 0,
+        initialAngle: 45, // Starting position
         eccentricity: 0.21
       },
       Venus: {
@@ -51,6 +63,7 @@ export class PlanetarySystem {
         distance: 4,
         period: 224.7,
         currentAngle: 0,
+        initialAngle: 120, // Starting position
         eccentricity: 0.01
       },
       Mars: {
@@ -60,6 +73,7 @@ export class PlanetarySystem {
         distance: 6,
         period: 687,
         currentAngle: 0,
+        initialAngle: 200, // Starting position
         eccentricity: 0.09
       },
       Jupiter: {
@@ -69,6 +83,7 @@ export class PlanetarySystem {
         distance: 8,
         period: 4333, // ~12 Earth years
         currentAngle: 0,
+        initialAngle: 270, // Starting position
         eccentricity: 0.05
       },
       Saturn: {
@@ -78,7 +93,28 @@ export class PlanetarySystem {
         distance: 10,
         period: 10759, // ~29 Earth years
         currentAngle: 0,
+        initialAngle: 330, // Starting position
         eccentricity: 0.06
+      },
+      Uranus: {
+        name: 'Uranus',
+        color: '#4FD0E7',
+        size: 0.8,
+        distance: 12,
+        period: 30687, // ~84 Earth years
+        currentAngle: 0,
+        initialAngle: 60, // Starting position
+        eccentricity: 0.05
+      },
+      Neptune: {
+        name: 'Neptune',
+        color: '#4B70DD',
+        size: 0.8,
+        distance: 14,
+        period: 60190, // ~165 Earth years
+        currentAngle: 0,
+        initialAngle: 350, // Starting position
+        eccentricity: 0.01
       }
     };
   }
@@ -109,6 +145,24 @@ export class PlanetarySystem {
   setTime(time) {
     const deltaTime = time - this.currentTime;
     this.updateTime(deltaTime);
+  }
+
+  /**
+   * Set absolute time from epoch
+   * @param {number} daysSinceEpoch - Days since J2000 epoch
+   */
+  setTimeAbsolute(daysSinceEpoch) {
+    // Reset all planets to initial angles
+    Object.values(this.planets).forEach(planet => {
+      if (planet.name === 'Sun') return;
+      
+      // Calculate total angle traveled since epoch
+      const orbits = daysSinceEpoch / planet.period;
+      const angle = (planet.initialAngle + orbits * 360) % 360;
+      planet.currentAngle = angle < 0 ? angle + 360 : angle;
+    });
+    
+    this.currentTime = daysSinceEpoch;
   }
 
   /**

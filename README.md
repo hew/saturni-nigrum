@@ -1,23 +1,34 @@
-# The Black Pyramid
+# Occult Pyramid
 
-A mystical web experience featuring a black pyramid in a desert landscape.
+A mystical 3D web experience built with Svelte and Three.js.
 
-## Features
-- 3D black pyramid with mystical glow
-- Dynamic sand particle effects that respond to mouse movement
-- Orbiting camera around the pyramid
-- Custom ritual cursor
-- Coordinate display showing mystical locations
+## Setup
 
-## Run Development Server
+```bash
+npm install
+```
+
+## Development
 
 ```bash
 npm run dev
 ```
 
-Then open http://localhost:5173 in your browser.
+## Build
 
-## Tech Stack
-- Svelte + Vite
-- Three.js for 3D graphics
-- GSAP for animations
+```bash
+npm run build
+```
+
+## Preview Production Build
+
+```bash
+npm run preview
+```
+
+## Technologies
+
+- Svelte 5
+- Three.js
+- Vite
+- GSAP

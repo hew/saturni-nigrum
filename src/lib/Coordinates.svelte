@@ -1,38 +1,34 @@
 <script>
   import { onMount } from 'svelte';
   
-  let lat = '0.00';
-  let lng = '0.00';
-
+  let time = '';
+  
   onMount(() => {
-    const handleMouseMove = (event) => {
-      const { mouseX, mouseY } = event.detail;
-      lat = (90 - (mouseY + 1) * 90).toFixed(2);
-      lng = (mouseX * 180).toFixed(2);
+    const updateTime = () => {
+      const now = new Date();
+      time = now.toISOString().split('T')[1].split('.')[0];
     };
-
-    window.addEventListener('mousemove-coords', handleMouseMove);
-
-    return () => {
-      window.removeEventListener('mousemove-coords', handleMouseMove);
-    };
+    
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    
+    return () => clearInterval(interval);
   });
 </script>
 
-<div class="coordinates">
-  {lat}°N {lng}°E
+<div class="time">
+  {time}
 </div>
 
 <style>
-  .coordinates {
+  .time {
     position: fixed;
-    top: 20px;
-    right: 20px;
-    color: #b8860b;
+    bottom: 20px;
+    left: 20px;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
     font-size: 12px;
-    letter-spacing: 2px;
-    pointer-events: none;
-    font-family: 'Courier New', monospace;
-    z-index: 10;
+    font-weight: 300;
+    color: #888;
+    letter-spacing: 0.05em;
   }
 </style>

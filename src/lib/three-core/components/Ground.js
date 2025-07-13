@@ -6,6 +6,12 @@
 import * as THREE from 'three';
 import { COLORS, MATERIALS, GEOMETRY } from '../utils/Constants.js';
 
+// Mobile detection function
+const isMobile = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+};
+
 export class Ground {
   constructor(options = {}) {
     this.options = {
@@ -175,7 +181,7 @@ export class Ground {
       const material = new THREE.LineBasicMaterial({
         vertexColors: true,
         transparent: true,
-        opacity: this.options.gridOpacity,
+        opacity: isMobile() ? Math.min(this.options.gridOpacity * 1.5, 1.0) : this.options.gridOpacity,  // 50% more opaque on mobile, capped at 1.0
         depthWrite: false,
         depthTest: true
       });
@@ -213,7 +219,7 @@ export class Ground {
     const gridMaterial = new THREE.LineBasicMaterial({
       vertexColors: true,
       transparent: true,
-      opacity: 1,
+      opacity: 1,  // Space grid is already at full opacity
       blending: THREE.AdditiveBlending
     });
     

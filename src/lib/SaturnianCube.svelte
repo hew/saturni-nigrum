@@ -467,11 +467,8 @@
         console.log('🪐 Saturn\'s time mastery achieved!');
       }
     } else {
-      // Wrong timing - Saturn instructs through reset
-      if (saturnCounter > 0) {
-        console.log('Saturn instructs: patience and precision...');
-      }
-      saturnCounter = 0;
+      // Wrong timing - but don't reset counter anymore
+      console.log('Saturn reminds: tap when seconds contain 6...');
     }
   }
   
@@ -541,13 +538,18 @@
     
     if (isPeakMoment) {
       breathCounter++;
+      console.log(`Triangle breath: ${breathCounter}/3`);
       
       if (breathCounter >= 3) {
         sceneStore.dispatch(actions.unlockTrinitySecret());
         sceneStore.dispatch(actions.showFlower());
+        console.log('△ Trinity alignment achieved!');
       }
     } else {
       // Triangle demands perfect synchronization
+      if (breathCounter > 0) {
+        console.log('Triangle resets: timing must align with the peak...');
+      }
       breathCounter = 0;
     }
   }
@@ -601,6 +603,7 @@
         // Rotate Saturn only if not showing triangle
         saturn.rotation.y = time * 0.05;
         saturnRings.rotation.z = Math.sin(time * 0.3) * 0.02;
+        saturnRings.rotation.x = -26.7 * (Math.PI / 180) + Math.cos(time * 0.25) * 0.03;
       }
     }
     // When manual control, keep cube still so user can find the angles
@@ -643,9 +646,10 @@
       activeObject.rotation.x = state.mouseY * Math.PI;
       activeObject.rotation.y = state.mouseX * Math.PI * 2;
       
-      // Also rotate Saturn's rings if active
+      // Also rotate Saturn's rings if active - now on both axes
       if (state.showSaturn && saturnRings) {
-        saturnRings.rotation.z = state.mouseY * Math.PI * 0.3; // Subtle ring tilt
+        saturnRings.rotation.z = state.mouseY * Math.PI * 0.3; // Tilt based on Y
+        saturnRings.rotation.x = -26.7 * (Math.PI / 180) + state.mouseX * Math.PI * 0.2; // Additional X-axis rotation
       }
       
       // Update Saturn rotation in store
@@ -767,7 +771,7 @@
       const isFrontFacing = edgeDir.dot(cameraDir) > 0;
       
       // When at the perfect magic angle (viewing from corner)
-      if (hexagonStrength > 0.995) {
+      if (hexagonStrength > 0.999) {
         // Make cube fully transparent
         targetCubeOpacity = 0.0;
         
@@ -775,8 +779,8 @@
         edge.material.color.setHex(0xffcc00); // Bright Saturn gold
         edge.material.opacity = 1.0;
         
-        // Unlock the secret only at absolute perfection
-        if (hexagonStrength > 0.999 && !state.secretUnlocked) {
+        // Unlock the secret at the same threshold
+        if (!state.secretUnlocked) {
           sceneStore.dispatch(actions.unlockCubeSecret());
         }
       } else if (hexagonStrength > 0.95) {
@@ -1079,9 +1083,9 @@
     position: absolute;
     top: 80px; /* Positioned below the cube/saturn toggle button */
     right: 20px;
-    background: #000;
-    border: 1px solid #1a1a1a;
-    color: #1a1a1a;
+    background: none;
+    border: 1px solid #ccaa00;
+    color: #ccaa00;
     font-size: 32px;
     width: 48px;
     height: 48px;
@@ -1102,9 +1106,9 @@
   }
   
   .saturn-secret-button:hover {
-    border-color: #3a3a3a;
-    color: #3a3a3a;
-    box-shadow: 0 0 30px #1a1a1a;
+    background: #ccaa00;
+    color: #000;
+    box-shadow: 0 0 20px #ccaa00;
   }
   
   .saturn-secret-button:active {
@@ -1115,9 +1119,9 @@
     position: absolute;
     top: 140px; /* Positioned below the triangle button */
     right: 20px;
-    background: #000;
-    border: 1px solid #1a1a1a;
-    color: #1a1a1a;
+    background: none;
+    border: 1px solid #ccaa00;
+    color: #ccaa00;
     font-size: 32px;
     width: 48px;
     height: 48px;
@@ -1138,9 +1142,9 @@
   }
   
   .trinity-secret-button:hover {
-    border-color: #3a3a3a;
-    color: #3a3a3a;
-    box-shadow: 0 0 30px #1a1a1a;
+    background: #ccaa00;
+    color: #000;
+    box-shadow: 0 0 20px #ccaa00;
   }
   
   .trinity-secret-button:active {
@@ -1149,11 +1153,11 @@
   
   .cube-return-button {
     position: absolute;
-    top: 20px;
-    left: 20px;
-    background: #000;
-    border: 1px solid #1a1a1a;
-    color: #1a1a1a;
+    top: 200px;
+    right: 20px;
+    background: none;
+    border: 1px solid #ccaa00;
+    color: #ccaa00;
     font-size: 32px;
     width: 48px;
     height: 48px;
@@ -1168,9 +1172,9 @@
   }
   
   .cube-return-button:hover {
-    border-color: #3a3a3a;
-    color: #3a3a3a;
-    box-shadow: 0 0 30px #1a1a1a;
+    background: #ccaa00;
+    color: #000;
+    box-shadow: 0 0 20px #ccaa00;
   }
   
   .cube-return-button:active {

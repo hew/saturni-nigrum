@@ -38,6 +38,10 @@
   let targetCubeOpacity = 1.0;
   let currentCubeOpacity = 1.0;
   
+  // Timer for yellow edge duration
+  let yellowEdgeStartTime = 0;
+  let yellowEdgeDuration = 0;
+  
   // Responsive line thickness
   $: isMobile = window?.innerWidth < 768;
   $: tubeRadius = isMobile ? 0.05 : 0.025; // 50% thinner on desktop
@@ -954,8 +958,14 @@
         edge.material.color.setHex(0xffcc00); // Bright Saturn gold
         edge.material.opacity = 1.0;
         
-        // Unlock the secret when lines turn yellow
-        if (!state.secretUnlocked) {
+        // Track how long edges have been yellow
+        if (yellowEdgeStartTime === 0) {
+          yellowEdgeStartTime = Date.now();
+        }
+        yellowEdgeDuration = (Date.now() - yellowEdgeStartTime) / 1000; // Convert to seconds
+        
+        // Unlock the secret only after 2 seconds of perfect alignment
+        if (!state.secretUnlocked && yellowEdgeDuration >= 2.0) {
           sceneStore.dispatch(actions.unlockCubeSecret());
         }
       } else if (hexagonStrength > 0.95) {
@@ -970,6 +980,10 @@
           edge.material.color.setHex(0x666666); // Darker for back-facing edges
           edge.material.opacity = 0.4;
         }
+        
+        // Reset timer if we're only close but not perfect
+        yellowEdgeStartTime = 0;
+        yellowEdgeDuration = 0;
       } else {
         // Normal opaque BLACK cube
         targetCubeOpacity = 1.0;
@@ -977,6 +991,10 @@
         // All edges same color and fully visible
         edge.material.color.setHex(0x888888);
         edge.material.opacity = 1.0;
+        
+        // Reset the yellow edge timer if alignment is lost
+        yellowEdgeStartTime = 0;
+        yellowEdgeDuration = 0;
       }
     });
   }

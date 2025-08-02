@@ -1,4 +1,4 @@
-# ▲ tahini
+# ▲
 
 > *"Saturni nigrum cubum custodiat arcanum temporum"*  
 > *The black cube of Saturn guards the secret of time*

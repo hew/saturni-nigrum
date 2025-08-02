@@ -23,3 +23,23 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Test coverage
+coverage
+.nyc_output
+
+# Environment variables
+.env
+.env.local
+.env.production.local
+.env.development.local
+
+# Build artifacts
+build/
+out/
+
+# Development notes
+TODO-*.md
+blog-post*.md
+SEED-OF-LIFE-*.md
+*-MIGRATION-GUIDE.md

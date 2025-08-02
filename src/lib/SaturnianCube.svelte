@@ -1,10 +1,13 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import * as THREE from 'three';
   import { createEventDispatcher } from 'svelte';
   import { createWastelandGround } from './three-core/components/Ground.js';
   import { LIGHTING } from './three-core/utils/Constants.js';
   import { sceneStore, actions, canInteractWithCube } from './store.js';
+  import ControlsHint from './components/ui/ControlsHint.svelte';
+  import SecretButtons from './components/ui/SecretButtons.svelte';
+  import { SceneManager } from './components/SceneManager.js';
   
   const dispatch = createEventDispatcher();
   
@@ -14,10 +17,11 @@
   $: state = $sceneStore;
 
   let canvas;
+  let sceneManager;
   let scene, camera, renderer;
+  let cubeObject, saturnObject, triangleObject, flowerObject;
   let cube, cubeEdges = [];
-  let ground;
-  let saturn, saturnRings; // For switching between cube and saturn
+  let saturn, saturnRings;
   let blackTriangle;
   let flowerOfLife;
   let time = 0;
@@ -30,8 +34,6 @@
   // Triangle breath ritual variables
   let breathCounter = 0;
   let breathPhase = 'inhale'; // 'inhale' or 'exhale'
-  let breathStartTime = 0;
-  let lastBreathUpdate = 0;
   let triangleGlowActive = false;
   
   // Cube hint animation
@@ -45,17 +47,12 @@
   // Responsive line thickness
   $: isMobile = window?.innerWidth < 768;
   $: tubeRadius = isMobile ? 0.05 : 0.025; // 50% thinner on desktop
+  $: if (sceneManager) sceneManager.setTubeRadius(tubeRadius);
   
   // Metatron variables
-  let metatronClicks = [];
   let metatronCube = null;
-  let showMetatron = false;
+  $: showMetatron = flowerObject ? flowerObject.isShowingMetatron() : false;
   
-  // The sacred order - based on the Fruit of Life pattern
-  // This is the true occult secret - the specific sequence matters
-  const FRUIT_OF_LIFE_ORDER = [0, 1, 3, 5, 2, 4, 6, 7, 9, 11, 8, 10, 12];
-  
-  // The sacred order remains hidden
   
   // Local state variables (will be migrated to store later)
   let showSaturn = false;
@@ -71,483 +68,36 @@
   const PHI = (1 + Math.sqrt(5)) / 2; // Golden ratio ≈ 1.618
 
   function init() {
-    // Scene setup
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000);
-    // No fog - pure black void
+    // Initialize scene manager
+    sceneManager = new SceneManager(canvas);
+    const setup = sceneManager.init();
+    scene = setup.scene;
+    camera = setup.camera;
+    renderer = setup.renderer;
 
-    // Camera with responsive FOV
-    const isMobileDevice = window.innerWidth < 768;
-    const baseFOV = isMobileDevice ? 60 : 45; // Wider FOV on mobile
-    camera = new THREE.PerspectiveCamera(baseFOV, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(30, 20, 30);
-    camera.lookAt(0, 10, 0);
-
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ 
-      canvas, 
-      antialias: true,
-      alpha: false,
-      precision: 'highp', // Force high precision to prevent color banding
-      logarithmicDepthBuffer: false // Disable to prevent depth precision issues
-    });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    // Disable shadows to prevent ground darkening
-    renderer.shadowMap.enabled = false;
-    // Disable tone mapping to prevent gradual changes
-    renderer.toneMapping = THREE.NoToneMapping;
-    renderer.toneMappingExposure = 1.0;
-    // Ensure color management is consistent
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // renderer.shadowMap.type = THREE.PCFShadowMap;
-
-    // Create the Black Cube
-    createBlackCube();
+    // Create all objects
+    const objects = sceneManager.createObjects(tubeRadius);
+    cube = objects.cube;
+    saturn = objects.saturn;
+    saturnRings = objects.saturnRings;
+    blackTriangle = objects.blackTriangle;
+    flowerOfLife = objects.flowerOfLife;
     
-    // Also create Saturn (hidden initially)
-    createSaturn();
+    // Get object references
+    cubeObject = sceneManager.cubeObject;
+    saturnObject = sceneManager.saturnObject;
+    triangleObject = sceneManager.triangleObject;
+    flowerObject = sceneManager.flowerObject;
     
-    // Create the black triangle (hidden initially)
-    createBlackTriangle();
-    
-    // Create the Flower of Life (hidden initially)
-    createFlowerOfLife();
-
-    // Create wasteland ground using modular component
-    ground = createWastelandGround({
-      receiveShadow: false  // Disable shadow receiving
-    });
-    scene.add(ground.getGroup());
-
-    // Minimal lighting using standardized constants
-    createStandardLighting();
+    // Keep compatibility references
+    cubeEdges = cubeObject.cubeEdges;
 
     // Handle resize
     window.addEventListener('resize', handleResize);
   }
 
-  function createBlackCube() {
-    // Main cube - pure black but can become transparent
-    const cubeGeometry = new THREE.BoxGeometry(10, 10, 10);
-    const cubeMaterial = new THREE.MeshPhongMaterial({
-      color: 0x000000,
-      emissive: 0x000000,
-      shininess: 100,
-      specular: 0x111111,
-      transparent: true,
-      opacity: 1.0
-    });
-    
-    cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-    // @ts-ignore
-    cube.position.y = 15; // Floating above ground
-    // cube.castShadow = true;
-    scene.add(cube);
-
-    // Create individual edges for depth-based rendering
-    createIndividualEdges(cubeGeometry);
-  }
-  
-  function createIndividualEdges(geometry) {
-    // Define vertices of the cube
-    const vertices = [
-      new THREE.Vector3(-5, -5, -5), // 0
-      new THREE.Vector3( 5, -5, -5), // 1
-      new THREE.Vector3( 5,  5, -5), // 2
-      new THREE.Vector3(-5,  5, -5), // 3
-      new THREE.Vector3(-5, -5,  5), // 4
-      new THREE.Vector3( 5, -5,  5), // 5
-      new THREE.Vector3( 5,  5,  5), // 6
-      new THREE.Vector3(-5,  5,  5), // 7
-    ];
-    
-    // Define all 12 edges
-    const edges = [
-      [0, 1], [1, 2], [2, 3], [3, 0], // back face
-      [4, 5], [5, 6], [6, 7], [7, 4], // front face
-      [0, 4], [1, 5], [2, 6], [3, 7], // connecting edges
-    ];
-    
-    // Create individual edge lines using tube geometry for proper thickness
-    edges.forEach(edge => {
-      const start = vertices[edge[0]];
-      const end = vertices[edge[1]];
-      const direction = end.clone().sub(start);
-      const length = direction.length();
-      
-      // Create tube geometry for thick lines
-      const tubeGeometry = new THREE.CylinderGeometry(tubeRadius, tubeRadius, length, 8);
-      const tubeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x888888  // Mid-gray between current dark and bright white
-      });
-      const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-      
-      // Position and orient the tube
-      tube.position.copy(start.clone().add(end).multiplyScalar(0.5));
-      tube.lookAt(end);
-      tube.rotateX(Math.PI / 2);
-      
-      cube.add(tube);
-      cubeEdges.push(tube);
-    });
-  }
-
-  function createStandardLighting() {
-    // Ambient light using standardized values
-    const ambientLight = new THREE.AmbientLight(
-      LIGHTING.AMBIENT.color, 
-      LIGHTING.AMBIENT.intensity
-    );
-    scene.add(ambientLight);
-
-    // Directional light using standardized values
-    const dirLight = new THREE.DirectionalLight(
-      LIGHTING.DIRECTIONAL.color, 
-      LIGHTING.DIRECTIONAL.intensity
-    );
-    dirLight.position.set(...LIGHTING.DIRECTIONAL.position);
-    // Access shadow camera properties directly (Three.js uses OrthographicCamera for DirectionalLight)
-    // @ts-ignore
-    dirLight.shadow.camera.near = LIGHTING.DIRECTIONAL.shadow.camera.near;
-    // @ts-ignore
-    dirLight.shadow.camera.far = LIGHTING.DIRECTIONAL.shadow.camera.far;
-    // @ts-ignore
-    dirLight.shadow.camera.left = LIGHTING.DIRECTIONAL.shadow.camera.left;
-    // @ts-ignore
-    dirLight.shadow.camera.right = LIGHTING.DIRECTIONAL.shadow.camera.right;
-    // @ts-ignore
-    dirLight.shadow.camera.top = LIGHTING.DIRECTIONAL.shadow.camera.top;
-    // @ts-ignore
-    dirLight.shadow.camera.bottom = LIGHTING.DIRECTIONAL.shadow.camera.bottom;
-    dirLight.shadow.mapSize.width = LIGHTING.DIRECTIONAL.shadow.mapSize.width;
-    dirLight.shadow.mapSize.height = LIGHTING.DIRECTIONAL.shadow.mapSize.height;
-    scene.add(dirLight);
-
-    // Rim light using standardized values
-    const rimLight = new THREE.DirectionalLight(
-      LIGHTING.RIM.color, 
-      LIGHTING.RIM.intensity
-    );
-    rimLight.position.set(...LIGHTING.RIM.position);
-    scene.add(rimLight);
-  }
 
 
-  function createSaturn() {
-    // Sacred geometry: Saturn's radius = cube edge / PHI
-    // If cube is 10 units, Saturn radius = 10 / (2 * PHI) ≈ 3.09
-    const cubeEdge = 10;
-    const saturnRadius = cubeEdge / (2 * PHI); // ≈ 3.09
-    
-    // Sacred numbers: 32 segments (power of 2), 24 stacks (hours in day)
-    const saturnGeometry = new THREE.SphereGeometry(saturnRadius, 32, 24);
-    const saturnMaterial = new THREE.MeshPhongMaterial({
-      color: 0x666666, // Brighter gray (but not as bright as white edges)
-      emissive: 0x2a2a2a, // Slightly brighter emission
-      shininess: 30, // Moderate shininess
-      specular: 0x4a4a4a // Brighter specular
-    });
-    
-    saturn = new THREE.Mesh(saturnGeometry, saturnMaterial);
-    // @ts-ignore
-    saturn.position.y = 15; // Same position as cube
-    // saturn.castShadow = true;
-    saturn.visible = false; // Hidden initially
-    
-    
-    scene.add(saturn);
-
-    // Saturn's rings with golden ratio proportions
-    const ringGroup = new THREE.Group();
-    // Ring proportions based on PHI
-    const rings = [
-      { inner: saturnRadius * PHI, outer: saturnRadius * PHI * 1.2 },        // Inner ring
-      { inner: saturnRadius * PHI * 1.3, outer: saturnRadius * PHI * 1.5 },  // Middle ring  
-      { inner: saturnRadius * PHI * 1.6, outer: saturnRadius * PHI * 2 }     // Outer ring
-    ];
-
-    rings.forEach(ring => {
-      const ringGeometry = new THREE.RingGeometry(ring.inner, ring.outer, 64, 1);
-      const ringMaterial = new THREE.MeshPhongMaterial({
-        color: 0x0a0a0a,  // Very dark, almost black
-        emissive: 0x000000,  // No glow
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.8
-      });
-      const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
-      // @ts-ignore
-      ringMesh.rotation.x = -Math.PI / 2;
-      // @ts-ignore
-      ringGroup.add(ringMesh);
-      
-      // Add white edges for both inner and outer ring boundaries
-      const saturnTubeRadius = tubeRadius;
-      const edgeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x888888  // Mid-gray between current dark and bright white
-      });
-      
-      // Inner edge
-      const innerEdgeGeometry = new THREE.TorusGeometry(ring.inner, saturnTubeRadius, 8, 32);
-      const innerEdge = new THREE.Mesh(innerEdgeGeometry, edgeMaterial);
-      // @ts-ignore
-      innerEdge.rotation.x = -Math.PI / 2;
-      // @ts-ignore
-      ringGroup.add(innerEdge);
-      
-      // Outer edge  
-      const outerEdgeGeometry = new THREE.TorusGeometry(ring.outer, saturnTubeRadius, 8, 32);
-      const outerEdge = new THREE.Mesh(outerEdgeGeometry, edgeMaterial);
-      // @ts-ignore
-      outerEdge.rotation.x = -Math.PI / 2;
-      // @ts-ignore
-      ringGroup.add(outerEdge);
-    });
-
-    // @ts-ignore
-    ringGroup.rotation.x = -26.7 * Math.PI / 180;
-    // @ts-ignore
-    ringGroup.position.y = 15;
-    ringGroup.visible = false; // Hidden initially
-    
-    saturnRings = ringGroup;
-    scene.add(saturnRings);
-  }
-  
-  function createBlackTriangle() {
-    // Create a perfect 2D equilateral triangle
-    const triangleShape = new THREE.Shape();
-    const size = 14.4; // 44% bigger than cube/saturn (12 * 1.2 = 14.4)
-    const height = size * Math.sqrt(3) / 2; // Height of equilateral triangle
-    
-    // Draw triangle centered at origin
-    triangleShape.moveTo(0, height * 2/3);
-    triangleShape.lineTo(-size/2, -height * 1/3);
-    triangleShape.lineTo(size/2, -height * 1/3);
-    triangleShape.closePath();
-    
-    // Use ShapeGeometry for perfect 2D appearance
-    const geometry = new THREE.ShapeGeometry(triangleShape);
-    
-    // Pure black material with no lighting response
-    const material = new THREE.MeshBasicMaterial({
-      color: 0x000000,
-      side: THREE.DoubleSide
-    });
-    
-    blackTriangle = new THREE.Mesh(geometry, material);
-    // @ts-ignore
-    blackTriangle.position.y = 15; // Same height as cube/saturn
-    blackTriangle.visible = false;
-    
-    // Add thick edge outline using tube geometry
-    const trianglePoints = [
-      new THREE.Vector3(0, height * 2/3, 0),
-      new THREE.Vector3(-size/2, -height * 1/3, 0),
-      new THREE.Vector3(size/2, -height * 1/3, 0),
-      new THREE.Vector3(0, height * 2/3, 0) // Close the triangle
-    ];
-    
-    for (let i = 0; i < trianglePoints.length - 1; i++) {
-      const start = trianglePoints[i];
-      const end = trianglePoints[i + 1];
-      const direction = end.clone().sub(start);
-      const length = direction.length();
-      
-      const tubeGeometry = new THREE.CylinderGeometry(tubeRadius, tubeRadius, length, 8);
-      const tubeMaterial = new THREE.MeshBasicMaterial({
-        color: 0x888888  // Mid-gray between current dark and bright white
-      });
-      const tube = new THREE.Mesh(tubeGeometry, tubeMaterial);
-      
-      // Position and orient the tube
-      tube.position.copy(start.clone().add(end).multiplyScalar(0.5));
-      tube.lookAt(end);
-      tube.rotateX(Math.PI / 2);
-      
-      // @ts-ignore
-      blackTriangle.add(tube);
-    }
-    
-    scene.add(blackTriangle);
-  }
-  
-  function createFlowerOfLife() {
-    // Create group to hold all circles
-    flowerOfLife = new THREE.Group();
-    
-    // Center circle radius
-    const radius = 3;
-    const circles = [];
-    const circleData = []; // Store circle positions and IDs
-    const nodeMap = new Map(); // Map to store clickable nodes by ID
-    
-    // Create circle geometry (using tube for thick lines)
-    function createCircle(x, y, z = 0, id) {
-      const curve = new THREE.EllipseCurve(
-        x, y,            // Center
-        radius, radius,  // xRadius, yRadius
-        0, 2 * Math.PI,  // Start angle, end angle
-        false,           // clockwise
-        0                // rotation
-      );
-      
-      const points = curve.getPoints(64);
-      const geometry = new THREE.BufferGeometry().setFromPoints(
-        points.map(p => new THREE.Vector3(p.x, p.y, z))
-      );
-      
-      // Create tube geometry for thick lines
-      const tubeGeometry = new THREE.TubeGeometry(
-        new THREE.CatmullRomCurve3(
-          points.map(p => new THREE.Vector3(p.x, p.y, z)),
-          true // closed curve
-        ),
-        64,        // tubular segments
-        tubeRadius * 0.8, // slightly thinner than other objects
-        8,         // radial segments
-        true       // closed
-      );
-      
-      const material = new THREE.MeshBasicMaterial({
-        color: 0xffffff
-      });
-      
-      const circle = new THREE.Mesh(tubeGeometry, material);
-      circle.userData = { id, centerX: x, centerY: y, clicked: false };
-      circle.name = `circle_${id}`; // Add name for easier finding
-      return circle;
-    }
-    
-    // Create clickable node at circle center
-    function createClickableNode(x, y, z = 0, id) {
-      // Create an invisible sphere at the center for clicking
-      // Larger on mobile for easier touch targeting
-      const nodeRadius = isMobile ? 1.0 : 0.5;
-      const nodeGeometry = new THREE.SphereGeometry(nodeRadius, 16, 16);
-      const nodeMaterial = new THREE.MeshBasicMaterial({
-        color: 0xff0000,
-        transparent: true,
-        opacity: 0 // Invisible but still clickable
-      });
-      
-      const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
-      node.position.set(x, y, z);
-      node.userData = { id, isNode: true };
-      node.name = `node_${id}`;
-      
-      return node;
-    }
-    
-    // Create the pattern - center circle plus 6 surrounding circles
-    // Center (ID: 0)
-    const circle0 = createCircle(0, 0, 0, 0);
-    const node0 = createClickableNode(0, 0, 0, 0);
-    circles.push(circle0);
-    circles.push(node0);
-    nodeMap.set(0, { circle: circle0, node: node0 });
-    circleData.push({ x: 0, y: 0, id: 0 });
-    
-    // Six circles around center (60 degree intervals) (IDs: 1-6)
-    for (let i = 0; i < 6; i++) {
-      const angle = (i * Math.PI * 2) / 6;
-      const x = Math.cos(angle) * radius;
-      const y = Math.sin(angle) * radius;
-      const circle = createCircle(x, y, 0, i + 1);
-      const node = createClickableNode(x, y, 0, i + 1);
-      circles.push(circle);
-      circles.push(node);
-      nodeMap.set(i + 1, { circle, node });
-      circleData.push({ x, y, id: i + 1 });
-    }
-    
-    // Second layer - 6 more circles (IDs: 7-12)
-    for (let i = 0; i < 6; i++) {
-      const angle = (i * Math.PI * 2) / 6 + Math.PI / 6; // Offset by 30 degrees
-      const x = Math.cos(angle) * radius * Math.sqrt(3);
-      const y = Math.sin(angle) * radius * Math.sqrt(3);
-      const circle = createCircle(x, y, 0, i + 7);
-      const node = createClickableNode(x, y, 0, i + 7);
-      circles.push(circle);
-      circles.push(node);
-      nodeMap.set(i + 7, { circle, node });
-      circleData.push({ x, y, id: i + 7 });
-    }
-    
-    // Store circle data and map for click detection
-    flowerOfLife.userData = { circles: circleData, nodeMap };
-    
-    
-    // Add all circles to group
-    circles.forEach(circle => {
-      flowerOfLife.add(circle);
-    });
-    
-    // Position at same height as other objects
-    flowerOfLife.position.y = 15;
-    flowerOfLife.visible = false;
-    
-    // Rotate to face camera like triangle
-    flowerOfLife.rotation.x = 0;
-    
-    scene.add(flowerOfLife);
-  }
-  
-  function createMetatronsCube() {
-    // Create Metatron's Cube by connecting all 13 centers
-    metatronCube = new THREE.Group();
-    
-    const circleData = flowerOfLife.userData.circles;
-    const lineMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffcc00 // Golden color for the sacred geometry
-    });
-    
-    // Connect every circle center to every other circle center
-    for (let i = 0; i < circleData.length; i++) {
-      for (let j = i + 1; j < circleData.length; j++) {
-        const start = circleData[i];
-        const end = circleData[j];
-        
-        const direction = new THREE.Vector3(
-          end.x - start.x,
-          end.y - start.y,
-          0
-        );
-        const length = direction.length();
-        
-        if (length > 0) {
-          const tubeGeometry = new THREE.CylinderGeometry(
-            tubeRadius * 0.6, // Slightly thinner than flower circles
-            tubeRadius * 0.6,
-            length,
-            8
-          );
-          
-          const tube = new THREE.Mesh(tubeGeometry, lineMaterial);
-          tube.position.set(
-            (start.x + end.x) / 2,
-            (start.y + end.y) / 2,
-            0
-          );
-          
-          // Orient the tube
-          const axis = new THREE.Vector3(0, 1, 0);
-          const quaternion = new THREE.Quaternion().setFromUnitVectors(
-            axis,
-            direction.normalize()
-          );
-          tube.quaternion.copy(quaternion);
-          
-          metatronCube.add(tube);
-        }
-      }
-    }
-    
-    metatronCube.position.copy(flowerOfLife.position);
-    metatronCube.visible = false;
-    scene.add(metatronCube);
-  }
 
   function goToSaturn(event) {
     event.stopPropagation();
@@ -555,22 +105,14 @@
   }
   
   function handleSaturnTimingClick() {
-    // Check if current seconds has a '6' in it
-    const seconds = currentTime.getSeconds();
-    const hasSecondsWithSix = seconds.toString().includes('6');
+    if (!saturnObject) return;
     
-    if (hasSecondsWithSix) {
-      // Correct timing! Increment counter
-      saturnCounter++;
-      
-      // Check if we've reached 666
-      if (saturnCounter >= 3) {
-        sceneStore.dispatch(actions.unlockSaturnSecret());
-      }
-    } else {
-      // Wrong timing - Saturn punishes impatience
-      saturnCounter = 0;
+    if (saturnObject.checkTimingSecret(currentTime)) {
+      sceneStore.dispatch(actions.unlockSaturnSecret());
     }
+    
+    // Update local counter for display
+    saturnCounter = saturnObject.saturnCounter;
   }
   
   function getTimeArray(time) {
@@ -590,75 +132,34 @@
   }
   
   function updateTriangleBreath() {
-    const currentTime = Date.now();
-    if (breathStartTime === 0) {
-      breathStartTime = currentTime;
+    if (!triangleObject) return;
+    
+    // Update the breathing animation
+    const newPhase = triangleObject.updateBreath();
+    
+    // Only update if phase actually changed to avoid unnecessary reactivity
+    if (newPhase !== breathPhase) {
+      breathPhase = newPhase;
     }
     
-    const elapsed = (currentTime - breathStartTime) / 1000; // seconds
-    const cycleDuration = 6; // 3 seconds inhale + 3 seconds exhale
-    const phaseTime = elapsed % cycleDuration;
-    
-    if (phaseTime < 3) {
-      breathPhase = 'inhale';
-    } else {
-      breathPhase = 'exhale';
-    }
-    
-    // Triangle breathing effect with dramatic color change
-    if (blackTriangle && blackTriangle.children) {
-      // Use smooth sine wave for natural breathing
-      const breathWave = Math.sin((elapsed / cycleDuration) * Math.PI * 2);
-      const breathIntensity = 0.5 + (breathWave * 0.5); // 0 to 1
-      
-      blackTriangle.children.forEach((child, i) => {
-        if (child.material) {
-          // Breathe from dark gray to bright white
-          const darkGray = 0x333333;   // Very dark
-          const brightWhite = 0xFFFFFF; // Pure white
-          
-          const r = Math.floor(0x33 + (breathIntensity * (0xFF - 0x33)));
-          const g = Math.floor(0x33 + (breathIntensity * (0xFF - 0x33)));
-          const b = Math.floor(0x33 + (breathIntensity * (0xFF - 0x33)));
-          const color = (r << 16) | (g << 8) | b;
-          
-          child.material.color.setHex(color);
-        }
-      });
-    }
+    triangleGlowActive = triangleObject.triangleGlowActive;
   }
   
   function handleTriangleBreathClick() {
-    // Check if click is perfectly timed with breath peak (inhale peak)
-    const currentTime = Date.now();
-    const elapsed = (currentTime - breathStartTime) / 1000;
-    const cycleDuration = 6;
-    const phaseTime = elapsed % cycleDuration;
+    if (!triangleObject) return;
     
-    // Peak of inhale is at 1.5 seconds into the cycle (middle of 3-second inhale)
-    const isPeakMoment = phaseTime >= 1.3 && phaseTime <= 1.7; // 0.4 second window
-    
-    if (isPeakMoment) {
-      breathCounter++;
-      
-      // Flash the glow effect for successful timing
-      triangleGlowActive = true;
-      setTimeout(() => {
-        triangleGlowActive = false;
-      }, 400); // 0.4 seconds, same as the success window
-      
-      if (breathCounter >= 3) {
-        sceneStore.dispatch(actions.unlockTrinitySecret());
-        sceneStore.dispatch(actions.showFlower());
-      }
-    } else {
-      // Triangle demands perfect synchronization
-      breathCounter = 0;
+    if (triangleObject.checkBreathClick()) {
+      // Trinity achieved!
+      sceneStore.dispatch(actions.unlockTrinitySecret());
+      sceneStore.dispatch(actions.showFlower());
     }
+    
+    // Update local state for display
+    triangleGlowActive = triangleObject.triangleGlowActive;
   }
   
   function handleFlowerClick(event) {
-    if (!state.showFlower || showMetatron) return;
+    if (!state.showFlower || !flowerObject) return;
     
     // Handle both mouse and touch events
     const clientX = event.clientX ?? event.touches?.[0]?.clientX;
@@ -675,76 +176,11 @@
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
     
-    // On mobile, increase raycaster precision for smaller touch targets
-    if (isMobile) {
-      raycaster.params.Points.threshold = 0.1;
-    }
-    
-    // Check intersections with flower circles
-    const intersects = raycaster.intersectObjects(flowerOfLife.children, true);
-    
-    if (intersects.length > 0) {
-      const clickedObject = intersects[0].object;
-      
-      // Check if we clicked a node
-      let clickedNode = null;
-      
-      // Find the clicked node
-      if (clickedObject.userData && clickedObject.userData.isNode) {
-        clickedNode = clickedObject;
-      } else {
-        // Traverse up to find a node
-        let obj = clickedObject;
-        while (obj && obj.parent) {
-          if (obj.userData && obj.userData.isNode) {
-            clickedNode = obj;
-            break;
-          }
-          obj = obj.parent;
-        }
-      }
-      
-      if (clickedNode && clickedNode.userData && clickedNode.userData.id !== undefined) {
-        const clickedId = clickedNode.userData.id;
-        
-        // Check if this is the next circle in the sacred sequence
-        const expectedId = FRUIT_OF_LIFE_ORDER[metatronClicks.length];
-        
-        if (clickedId === expectedId) {
-          metatronClicks.push(clickedId);
-          
-          // Dim the clicked circle - find all related meshes
-          const nodeMap = flowerOfLife.userData.nodeMap;
-          const nodeData = nodeMap.get(clickedId);
-          if (nodeData && nodeData.circle && nodeData.circle.material) {
-            nodeData.circle.material.color.setHex(0x666666);
-          }
-          
-          // Check if sequence is complete
-          if (metatronClicks.length === 13) {
-            showMetatron = true;
-            // Create Metatron's Cube if not already created
-            if (!metatronCube) {
-              createMetatronsCube();
-            }
-            // Animate the transformation
-            setTimeout(() => {
-              metatronCube.visible = true;
-              flowerOfLife.visible = false;
-            }, 500);
-          }
-        } else {
-          // Wrong circle - reset
-          metatronClicks = [];
-          // Reset all circles to white
-          const nodeMap = flowerOfLife.userData.nodeMap;
-          nodeMap.forEach((nodeData) => {
-            if (nodeData.circle && nodeData.circle.material) {
-              nodeData.circle.material.color.setHex(0xffffff);
-            }
-          });
-        }
-      }
+    // Let FlowerOfLife handle the click
+    if (flowerObject.handleClick(raycaster, isMobile)) {
+      // Pattern complete!
+      showMetatron = true;
+      metatronCube = flowerObject.metatronCube;
     }
   }
   
@@ -752,22 +188,33 @@
   $: if (cube && saturn && saturnRings && blackTriangle && flowerOfLife) {
     cube.visible = state.showCube;
     cubeEdges.forEach(edge => edge.visible = state.showCube);
-    saturn.visible = state.showSaturn;
-    saturnRings.visible = state.showSaturn;
-    blackTriangle.visible = state.showTriangle;
-    flowerOfLife.visible = state.showFlower && !showMetatron;
+    if (saturnObject) {
+      if (state.showSaturn && !saturn.visible) {
+        saturnObject.show();
+      } else if (!state.showSaturn && saturn.visible) {
+        saturnObject.hide();
+      }
+    }
+    if (triangleObject) {
+      if (state.showTriangle && !triangleObject.triangle.visible) {
+        triangleObject.show();
+      } else if (!state.showTriangle && triangleObject.triangle.visible) {
+        triangleObject.hide();
+      }
+    }
+    if (flowerObject) {
+      if (state.showFlower && !flowerObject.flowerGroup.visible) {
+        flowerObject.show();
+      } else if (!state.showFlower && flowerObject.flowerGroup.visible) {
+        flowerObject.hide();
+      }
+    }
   }
 
   function handleResize() {
-    // Update camera aspect and FOV for new size
-    camera.aspect = window.innerWidth / window.innerHeight;
-    
-    // Adjust FOV on resize too
-    const isMobileDevice = window.innerWidth < 768;
-    camera.fov = isMobileDevice ? 60 : 45;
-    
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    if (sceneManager) {
+      sceneManager.handleResize();
+    }
   }
 
   function animate() {
@@ -778,7 +225,7 @@
     currentTime = new Date();
     
     // Update triangle breath cycle
-    if (state.showTriangle) {
+    if (state.showTriangle && triangleObject) {
       updateTriangleBreath();
     }
     
@@ -787,74 +234,60 @@
     // Object rotation
     if (state.showSaturn && !state.showTriangle) {
       // Saturn always auto-rotates
-      saturn.rotation.y = time * 0.05;
-      saturnRings.rotation.z = Math.sin(time * 0.3) * 0.02;
-      saturnRings.rotation.x = -26.7 * (Math.PI / 180) + Math.cos(time * 0.25) * 0.03;
+      if (saturnObject) {
+        saturnObject.animate(time);
+      }
     } else if (state.showCube && state.autoRotate) {
       // Cube only rotates in auto mode
-      cube.rotation.y = time * 0.1;
-    
-      // The secret: viewing from specific angle shows hexagon
-      // When viewed from corner (1,1,1 direction), cube projects as hexagon
-      const revealAngle = Math.sin(time * 0.2) * 0.1;
-      cube.rotation.x = 0.615 + revealAngle; // Magic angle: atan(1/sqrt(2))
+      if (cubeObject && cube) {
+        cube.rotation.y = time * 0.1;
+      
+        // The secret: viewing from specific angle shows hexagon
+        // When viewed from corner (1,1,1 direction), cube projects as hexagon
+        const revealAngle = Math.sin(time * 0.2) * 0.1;
+        cube.rotation.x = 0.615 + revealAngle; // Magic angle: atan(1/sqrt(2))
+      }
     }
     // When manual control, keep cube still so user can find the angles
     
     // Handle triangle visibility
-    if (state.showTriangle && blackTriangle) {
-      blackTriangle.visible = true;
-      // Always face camera for perfect 2D appearance
-      blackTriangle.lookAt(camera.position);
+    if (state.showTriangle && triangleObject) {
+      triangleObject.lookAtCamera(camera.position);
     }
     
-    // Handle Metatron's Cube visibility
-    if (showMetatron && metatronCube) {
-      metatronCube.lookAt(camera.position);
+    // Handle Flower/Metatron visibility
+    if (state.showFlower && flowerObject) {
+      flowerObject.lookAtCamera(camera.position);
     }
 
     // Camera distance responsive to screen size
     const aspectRatio = window.innerWidth / window.innerHeight;
     const isMobile = window.innerWidth < 768;
     
-    // Adjust camera distance based on screen size and aspect ratio
-    let cameraDistance = cubeEdge * PHI * PHI; // Base: 10 * 1.618² ≈ 26.18
-    let cameraHeight = cubeEdge * PHI; // Base: 10 * 1.618 ≈ 16.18
+    // Get camera distance from scene manager
+    const { distance: cameraDistance, height: cameraHeight } = 
+      sceneManager ? sceneManager.getCameraDistance(isMobile, aspectRatio) : 
+      { distance: 26.18, height: 16.18 };
     
-    if (isMobile) {
-      // Zoom out more on mobile to ensure everything fits
-      const zoomFactor = aspectRatio < 1 ? 1.5 : 1.3; // More zoom for portrait
-      cameraDistance *= zoomFactor;
-      cameraHeight *= zoomFactor;
-    }
+    // Fixed camera position for all states - no movement
+    camera.position.set(cameraDistance, cameraHeight, cameraDistance);
     
-    if (state.autoRotate) {
-      // Slight camera orbit for ambiance - works for all states
-      camera.position.x = cameraDistance + Math.sin(time * 0.1) * 2;
-      camera.position.y = cameraHeight;
-      camera.position.z = cameraDistance + Math.cos(time * 0.1) * 2;
-    } else if (state.showCube && !state.autoRotate) {
-      // Camera stays still, cube rotates with mouse
-      camera.position.set(cameraDistance, cameraHeight, cameraDistance);
-      
-      // Rotate cube based on mouse
+    // Handle manual cube rotation when not in auto-rotate mode
+    if (state.showCube && !state.autoRotate && cubeObject && cube) {
       cube.rotation.x = state.mouseY * Math.PI;
       cube.rotation.y = state.mouseX * Math.PI * 2;
-    } else {
-      // Fixed camera for triangle and flower states
-      camera.position.set(cameraDistance, cameraHeight, cameraDistance);
     }
     
     // Set camera look target based on current state
     let lookAtTarget;
-    if (state.showFlower) {
+    if (state.showFlower && flowerOfLife) {
       lookAtTarget = flowerOfLife.position;
-    } else if (state.showTriangle) {
+    } else if (state.showTriangle && blackTriangle) {
       lookAtTarget = blackTriangle.position;
     } else if (state.showSaturn) {
       lookAtTarget = saturn.position;
     } else {
-      lookAtTarget = cube.position;
+      lookAtTarget = cube ? cube.position : new THREE.Vector3(0, 15, 0);
     }
     camera.lookAt(lookAtTarget);
     
@@ -862,7 +295,7 @@
     // The hexagon appears when viewing cube from corner angles
     let maxAlignment = 0;
     
-    if (!state.showSaturn) {
+    if (!state.showSaturn && cube) {
       // Get the view direction (from cube to camera, normalized)
       const viewDir = camera.position.clone().sub(cube.position).normalize();
       
@@ -894,7 +327,7 @@
     const hexagonStrength = state.autoRotate ? 0 : Math.pow(maxAlignment, 100); // Incredibly sharp, only in manual mode
     
     // Update appearance based on alignment
-    if (state.showCube) {
+    if (state.showCube && cubeObject) {
       updateCubeAppearance(hexagonStrength);
       
       // Smooth fade animation for cube opacity
@@ -905,9 +338,13 @@
       if (cube && cube.material) {
         cube.material.opacity = currentCubeOpacity;
       }
+      
+      // Update cube object's internal state
+      cubeObject.targetCubeOpacity = targetCubeOpacity;
+      cubeObject.currentCubeOpacity = currentCubeOpacity;
     }
 
-    renderer.render(scene, camera);
+    if (sceneManager) sceneManager.render();
   }
   
   function updateSaturnAppearance() {
@@ -932,6 +369,30 @@
   }
   
   function updateCubeAppearance(hexagonStrength) {
+    if (!cubeObject) return;
+    
+    // Handle yellow edge timing
+    if (state.cubeSecretUnlocked && yellowEdgeStartTime === 0) {
+      yellowEdgeStartTime = Date.now();
+    }
+    yellowEdgeDuration = yellowEdgeStartTime > 0 ? Date.now() - yellowEdgeStartTime : 0;
+    
+    // Update opacity based on hexagon strength
+    if (hexagonStrength > 0.995) {
+      targetCubeOpacity = 0.0;
+      if (!state.secretUnlocked && yellowEdgeDuration >= 2000) {
+        sceneStore.dispatch(actions.unlockCubeSecret());
+      }
+    } else if (hexagonStrength > 0.95) {
+      targetCubeOpacity = 0.1;
+      yellowEdgeStartTime = 0;
+      yellowEdgeDuration = 0;
+    } else {
+      targetCubeOpacity = 1.0;
+      yellowEdgeStartTime = 0;
+      yellowEdgeDuration = 0;
+    }
+    
     // Update each edge based on its depth from camera
     cubeEdges.forEach((edge, index) => {
       // Get edge midpoint in world space
@@ -1078,96 +539,31 @@
       canvas.removeEventListener('touchstart', handlePointerDown);
       window.removeEventListener('keypress', handleKeyPress);
       window.removeEventListener('keydown', handleKeyPress);
-      if (ground) ground.dispose();
-      renderer.dispose();
+      if (sceneManager) sceneManager.dispose();
     };
   });
 </script>
 
 <canvas bind:this={canvas}></canvas>
 
-<div class="controls-hint">
-  {#if state.showFlower && !showMetatron}
-    <!-- Extremely subtle hint for the initiated -->
-    <p style="opacity: 0.3; font-size: 10px;">13</p>
-  {:else if showMetatron}
-    <!-- Metatron achieved -->
-  {:else if state.showTriangle}
-    <!-- Triangle breath ritual interface -->
-    <p class="triangle-breath" class:success-glow={triangleGlowActive}>
-      {breathPhase}
-    </p>
-  {:else if state.showSaturn}
-    <!-- Saturn time secret interface -->
-    <p class="saturn-time">
-      {#each getTimeArray(currentTime) as timeChar}
-        <span class:glowing-six={timeChar.isSix}>{timeChar.char}</span>
-      {/each}
-      {#if saturnCounter > 0}
-        <span class="saturn-counter" class:complete={saturnCounter >= 3}>{'6'.repeat(saturnCounter)}</span>
-      {/if}
-    </p>
-  {:else if state.autoRotate}
-    <p>Tap to control</p>
-  {:else}
-    <p>Drag to rotate • Tap to release</p>
-  {/if}
-</div>
+<ControlsHint 
+  {state}
+  {showMetatron}
+  {triangleGlowActive}
+  {breathPhase}
+  {currentTime}
+  {saturnCounter}
+  {magicMode}
+/>
 
-<!-- Saturn button (shows when cube secret unlocked OR magic mode) -->
-{#if state.cubeSecretUnlocked || magicMode}
-<button class="secret-button" on:click={goToSaturn}>
-  ⬢
-</button>
-{/if}
-
-<!-- Triangle button (shows when saturn secret unlocked OR magic mode) -->
-{#if state.saturnSecretUnlocked || magicMode}
-  <button 
-    class="saturn-secret-button" 
-    on:click={(e) => {
-      e.stopPropagation();
-      sceneStore.dispatch(actions.showTriangle());
-    }}
-    on:touchstart={(e) => e.stopPropagation()}
-    on:touchend={(e) => e.stopPropagation()}
-    on:mousedown={(e) => e.stopPropagation()}
-  >
-    △
-  </button>
-{/if}
-
-<!-- Flower button (shows when trinity secret unlocked OR magic mode) -->
-{#if state.trinitySecretUnlocked || magicMode}
-  <button 
-    class="trinity-secret-button" 
-    on:click={(e) => {
-      e.stopPropagation();
-      sceneStore.dispatch(actions.showFlower());
-    }}
-    on:touchstart={(e) => e.stopPropagation()}
-    on:touchend={(e) => e.stopPropagation()}
-    on:mousedown={(e) => e.stopPropagation()}
-  >
-    ❀
-  </button>
-{/if}
-
-<!-- Cube return button (only in magic mode) -->
-{#if magicMode}
-  <button 
-    class="cube-return-button" 
-    on:click={(e) => {
-      e.stopPropagation();
-      sceneStore.dispatch(actions.showCube());
-    }}
-    on:touchstart={(e) => e.stopPropagation()}
-    on:touchend={(e) => e.stopPropagation()}
-    on:mousedown={(e) => e.stopPropagation()}
-  >
-    ◼
-  </button>
-{/if}
+<SecretButtons 
+  {state}
+  {magicMode}
+  on:goToSaturn={goToSaturn}
+  on:showTriangle={() => sceneStore.dispatch(actions.showTriangle())}
+  on:showFlower={() => sceneStore.dispatch(actions.showFlower())}
+  on:showCube={() => sceneStore.dispatch(actions.showCube())}
+/>
 
 <style>
   canvas {
@@ -1177,218 +573,4 @@
     touch-action: none; /* Prevent pinch zoom and pan */
   }
   
-  .controls-hint {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    color: #333;
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    letter-spacing: 1px;
-    opacity: 0.5;
-    pointer-events: none; /* Don't block touch events */
-    user-select: none;
-  }
-  
-  @media (max-width: 768px) {
-    .controls-hint {
-      font-size: 13px; /* Larger on mobile */
-      opacity: 0.7; /* 40% brighter on mobile */
-    }
-  }
-  
-  .saturn-time {
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    letter-spacing: 2px;
-    margin: 0;
-  }
-  
-  .saturn-counter {
-    color: #666;
-    font-weight: bold;
-    margin-left: 10px;
-    letter-spacing: 2px;
-    transition: all 0.3s ease;
-  }
-  
-  .saturn-counter.complete {
-    color: #cc0000;
-    text-shadow: 0 0 10px rgba(204, 0, 0, 0.6);
-    animation: pulse 1s ease-in-out infinite;
-  }
-  
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
-  }
-  
-  .glowing-six {
-    color: #333;
-    text-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
-    animation: subtle-pulse 3s ease-in-out infinite;
-  }
-  
-  @keyframes subtle-pulse {
-    0%, 100% { 
-      text-shadow: 0 0 2px rgba(255, 255, 255, 0.6);
-    }
-    50% { 
-      text-shadow: 0 0 6px rgba(255, 255, 255, 1);
-    }
-  }
-  
-  .triangle-breath {
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    letter-spacing: 2px;
-    margin: 0;
-    text-transform: lowercase;
-    opacity: 0.7;
-    transition: all 0.1s ease;
-  }
-  
-  .triangle-breath.success-glow {
-    opacity: 1;
-    font-weight: bold;
-    color: #fff;
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-  }
-  
-  
-  .secret-button {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background: none;
-    border: 1px solid #ccaa00;
-    color: #ccaa00;
-    font-size: 24px;
-    width: 48px;
-    height: 48px;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
-    transition: all 0.3s ease;
-    opacity: 0;
-    animation: fadeIn 1s forwards;
-  }
-  
-  .secret-button:hover {
-    background: #ccaa00;
-    color: #000;
-    box-shadow: 0 0 20px #ccaa00;
-  }
-  
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: scale(0.8);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-  
-  .saturn-secret-button {
-    position: absolute;
-    top: 80px; /* Positioned below the cube/saturn toggle button */
-    right: 20px;
-    background: none;
-    border: 1px solid #ccaa00;
-    color: #ccaa00;
-    font-size: 32px;
-    width: 48px;
-    height: 48px;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
-    transition: all 0.3s ease;
-    opacity: 0;
-    animation: fadeIn 2s forwards;
-    -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
-    touch-action: manipulation; /* Prevent double-tap zoom */
-    z-index: 1000; /* Ensure button is on top */
-  }
-  
-  @media (max-width: 768px) {
-    .saturn-secret-button {
-      top: 80px; /* Keep same vertical spacing on mobile */
-    }
-  }
-  
-  .saturn-secret-button:hover {
-    background: #ccaa00;
-    color: #000;
-    box-shadow: 0 0 20px #ccaa00;
-  }
-  
-  .saturn-secret-button:active {
-    transform: translateX(-50%) scale(0.95);
-  }
-  
-  .trinity-secret-button {
-    position: absolute;
-    top: 140px; /* Positioned below the triangle button */
-    right: 20px;
-    background: none;
-    border: 1px solid #ccaa00;
-    color: #ccaa00;
-    font-size: 32px;
-    width: 48px;
-    height: 48px;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
-    transition: all 0.3s ease;
-    opacity: 0;
-    animation: fadeIn 2s forwards;
-    -webkit-tap-highlight-color: transparent; /* Remove tap highlight */
-    touch-action: manipulation; /* Prevent double-tap zoom */
-    z-index: 1000; /* Ensure button is on top */
-  }
-  
-  @media (max-width: 768px) {
-    .trinity-secret-button {
-      top: 140px; /* Keep same vertical spacing on mobile */
-    }
-  }
-  
-  .trinity-secret-button:hover {
-    background: #ccaa00;
-    color: #000;
-    box-shadow: 0 0 20px #ccaa00;
-  }
-  
-  .trinity-secret-button:active {
-    transform: translateX(-50%) scale(0.95);
-  }
-  
-  .cube-return-button {
-    position: absolute;
-    top: 200px;
-    right: 20px;
-    background: none;
-    border: 1px solid #ccaa00;
-    color: #ccaa00;
-    font-size: 32px;
-    width: 48px;
-    height: 48px;
-    cursor: pointer;
-    font-family: 'Courier New', monospace;
-    transition: all 0.3s ease;
-    opacity: 0;
-    animation: fadeIn 1s forwards;
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    z-index: 1000;
-  }
-  
-  .cube-return-button:hover {
-    background: #ccaa00;
-    color: #000;
-    box-shadow: 0 0 20px #ccaa00;
-  }
-  
-  .cube-return-button:active {
-    transform: scale(0.95);
-  }
 </style>

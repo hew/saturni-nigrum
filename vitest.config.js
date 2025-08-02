@@ -3,7 +3,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { resolve } from 'path';
 
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [svelte({ hot: false })],
   test: {
     globals: true,
     environment: 'happy-dom',

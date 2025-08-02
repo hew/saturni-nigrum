@@ -10,16 +10,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Architecture
 
-This is a Svelte + Vite web application that creates a mystical 3D desert scene with a black pyramid using Three.js.
+This is a Svelte + Vite web application using Three.js.
 
 ### Core Structure
 
-- `src/App.svelte` - Main application entry point that orchestrates the three main components
-- `src/main.js` - Svelte application mount point
-- `src/lib/` - Component library containing the three main interactive elements:
-  - `DesertScene.svelte` - The primary Three.js scene with pyramid, desert terrain, particle effects, and camera controls
-  - `Coordinates.svelte` - Displays dynamic coordinates based on mouse position
-  - `RitualCursor.svelte` - Custom animated cursor that replaces the default mouse cursor
+👀 Read the codefetch/codebase.md folder.
 
 ### Key Dependencies
 
@@ -27,20 +22,11 @@ This is a Svelte + Vite web application that creates a mystical 3D desert scene 
 - **GSAP**: Handles animations, particularly the pyramid intro animation
 - **Svelte 5**: Modern component framework with reactive updates
 
-### Scene Architecture
+### Important Notes
 
-The main 3D scene (`DesertScene.svelte`) contains:
-- A procedurally generated desert plane with random vertex heights
-- A black pyramid with metallic material and emissive glow
-- Dynamic particle system (2000 sand particles) that responds to mouse movement
-- Camera that orbits around the pyramid automatically
-- Multiple light sources: ambient light, directional moonlight, and pyramid point light
+❌ Don't just start coding "simpler" versions of what I ask for if you hit a block. Just return and ask for help.
 
-### Component Communication
+❌ Do NOT make assumptions. Just ask me for clarification if needed.
 
-Components communicate through custom events:
-- `DesertScene` dispatches `mousemove-coords` events with normalized mouse coordinates
-- `Coordinates` listens to these events to update the displayed coordinates
-- All components are mounted conditionally after the main app is mounted
-
-The application uses a custom cursor (disabled default cursor in global styles) and has a full-screen immersive design with no scrolling.
+✅ ALWAYS work in a TDD style.
+✅ Always start with a test FIRST, and then the implementation.
